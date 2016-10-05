@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGL 3D Model Viewer Using three.js</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="js/three.js"></script>
+    <script src="js/Detector.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <script src="js/OBJLoader.js"></script>
+    <script src="js/MTLLoader.js"></script>
+    <script src="js/papaparse.min.js"></script>
+    <style>
+        body {
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            background-color: rgb(192, 192, 192);
+            background: hsl(0, 0%, 10%);
+        }
+        p {
+            margin: 0;
+            padding: 0;
+        }
+        .left,
+        .right {
+            position: absolute;
+            color: #fff;
+            font-family: Geneva, sans-serif;
+        }
+        .left {
+            bottom: 1em;
+            left: 1em;
+            text-align: left;
+        }
+        .right {
+            top: 0;
+            right: 0;
+            text-align: right;
+        }
+        a {
+            color: #f58231;
+        }
+        #progress {
+            color:white;
+            top:45%;
+            width: 100%;
+            font-size:24px;
+            font-weight:bold;
+            position:absolute;
+            z-index:100;
+            text-align: center;
+            text-shadow: #000 0px 0px 10px;            
+            display:none;
+        }
+        .shadow {
+            -moz-box-shadow: 0px 0px 5px #000;
+            -webkit-box-shadow: 0px 0px 5px #000;
+            box-shadow: 0px 0px 5px #FFFFFF;
+        }
+        #progressbar {
+            text-align: center;
+            background: black;
+            width: 250px;
+            height: 10px;
+        }
+        #bar {
+            background:#FFFFFF;
+            width:50px;
+            height:10px;
+        }
+
+        .tooltip {
+            visibility: hidden;
+            width: 100px;
+            background-color: black;
+            color: #fff;
+            text-align: center;
+            border-radius: 12px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 150%;
+            left: 50%;
+            margin-left: -60px;
+        }
+    </style>
+</head>
+<body>
+    <div id="progress">
+        <span id="message">Loading ...</span>
+        <center>
+            <div id="progressbar" class="shadow"><div id="bar" class="shadow"></div></div>
+        </center>
+    </div>
+    <script>
+        var annotationData = [];
+        parseData("sample.csv");
+        function parseData(url) {
+            Papa.parse(url, {
+                download: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    console.log(results.data);
+                    annotationData.push(results.data[1]);
+                }
+            });
+        }
+
+        if (!Detector.webgl) {
+            Detector.addGetWebGLMessage();
+        }
+
+        var container;
+        var camera, controls, scene, renderer;
+        var lighting, ambient, keyLight, fillLight, backLight;
+        var windowHalfX = window.innerWidth / 2;
+        var windowHalfY = window.innerHeight / 2;
+
+        init();
+        animate();
+
+        THREE.DefaultLoadingManager.onProgress = function ( item, loaded, total ) {
+            var bar = Math.floor( 250 * loaded / total );
+            $( "bar" ).style.width = bar + "px";
+            if(loaded == total){
+                $( "message" ).style.display = "none";
+                $( "progressbar" ).style.display = "none";
+            } else {
+                $( "progress" ).style.display = "block";
+            }
+            console.log( item, loaded, total );
+        };
+
+        function $( id ) {
+            return document.getElementById( id );
+        }
+
+        function init() {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            /* Camera */
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.z = 100;
+
+            /* Scene */
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color("rgb(192, 192, 192)");
+            lighting = false;
+
+            /* Adding text sprite */
+            var txSprite = makeTextSprite( "Left wings", 40, -3, 0, { 
+                                            fontsize: 72, 
+                                            fontface: "Arial", 
+                                            borderColor: {r:255, g:255, b:255, a:1.0}, 
+                                            borderThickness:2, 
+                                            fillColor: {r:17, g:106, b:194, a:0.7}, 
+                                            radius:25, 
+                                            vAlign:"bottom", 
+                                            hAlign:"left" 
+                                        } );
+
+            scene.add(txSprite);
+            /* Adding text sprite */
+
+            ambient = new THREE.AmbientLight(0xffffff, 1.0);
+            scene.add(ambient);
+
+            keyLight = new THREE.DirectionalLight(new THREE.Color('hsl(30, 100%, 75%)'), 1.0);
+            keyLight.position.set(-100, 0, 100);
+
+            fillLight = new THREE.DirectionalLight(new THREE.Color('hsl(240, 100%, 75%)'), 0.75);
+            fillLight.position.set(100, 0, 100);
+
+            backLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            backLight.position.set(100, 0, -100).normalize();
+
+            /* Model */
+            var mtlLoader = new THREE.MTLLoader();
+            mtlLoader.setBaseUrl( "assets/Boeing 747/" );
+            mtlLoader.setPath('assets/Boeing 747/');
+            mtlLoader.load('Boeing747.mtl', function (materials) {
+
+                materials.preload();
+                var objLoader = new THREE.OBJLoader();
+                objLoader.setMaterials(materials);
+                objLoader.setPath('assets/Boeing 747/');
+                objLoader.load('Boeing747.obj', function (object) {
+                    object.position.x = 0;
+                    object.position.y = -15;
+                    object.position.z = 0;
+                    object.rotateY(3);
+                    scene.add(object);
+
+                    /*
+                    $( "ge" ).addEventListener('click', function() {
+                        object.updateMatrixWorld();
+                        alert(JSON.stringify(object.getWorldRotation()));
+                    }, false);
+                    */
+                });                
+
+            });
+
+            /* Renderer */
+            renderer = new THREE.WebGLRenderer();
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(new THREE.Color("hsl(0, 0%, 10%)"));
+
+            container.appendChild(renderer.domElement);
+
+            /* Controls */
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.25;
+            controls.minDistance = 10;
+            controls.maxDistance = 400;
+            controls.maxPolarAngle = Math.PI/2;
+
+            /* Events */
+            window.addEventListener('resize', onWindowResize, false);
+            window.addEventListener('keydown', onKeyboardEvent, false);
+        }
+
+        function onWindowResize() {
+            windowHalfX = window.innerWidth / 2;
+            windowHalfY = window.innerHeight / 2;
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /* Annotation */
+        function makeTextSprite( message, x, y, z, parameters ) 
+        { 
+            if ( parameters === undefined ) parameters = {}; 
+             
+            var fontface = parameters.hasOwnProperty("fontface") ?  
+                parameters["fontface"] : "Arial"; 
+             
+            var fontsize = parameters.hasOwnProperty("fontsize") ?  
+                parameters["fontsize"] : 18; 
+             
+            var borderThickness = parameters.hasOwnProperty("borderThickness") ?  
+                parameters["borderThickness"] : 4; 
+             
+            var borderColor = parameters.hasOwnProperty("borderColor") ? 
+                parameters["borderColor"] : { r:0, g:0, b:0, a:1.0 }; 
+             
+            var fillColor = parameters.hasOwnProperty("fillColor") ? 
+                parameters["fillColor"] : undefined; 
+         
+            var textColor = parameters.hasOwnProperty("textColor") ? 
+                parameters["textColor"] : { r:255, g:255, b:255, a:1.0 }; 
+         
+            var radius = parameters.hasOwnProperty("radius") ? 
+                        parameters["radius"] : 6; 
+         
+            var vAlign = parameters.hasOwnProperty("vAlign") ? 
+                                parameters["vAlign"] : "center"; 
+         
+            var hAlign = parameters.hasOwnProperty("hAlign") ? 
+                                parameters["hAlign"] : "center"; 
+         
+            var canvas = document.createElement('canvas');
+            canvas.className = "tooltip"; 
+            var context = canvas.getContext('2d'); 
+             
+            // set a large-enough fixed-size canvas  
+            canvas.width = 1800; 
+            canvas.height = 900; 
+             
+            context.font = fontsize + "px " + fontface; 
+            context.textBaseline = "alphabetic"; 
+            context.textAlign = "left"; 
+             
+            // get size data (height depends only on font size) 
+            var metrics = context.measureText( message ); 
+            var textWidth = metrics.width; 
+            var cx = canvas.width / 2; 
+            var cy = canvas.height / 2; 
+            var tx = textWidth/ 2.0; 
+            var ty = fontsize / 2.0; 
+         
+            // then adjust for the justification 
+            if ( vAlign == "bottom") 
+                ty = 0; 
+            else if (vAlign == "top") 
+                ty = fontsize; 
+             
+            if (hAlign == "left") 
+                tx = textWidth; 
+            else if (hAlign == "right") 
+                tx = 0; 
+             
+            // the DESCENDER_ADJUST is extra height factor for text below baseline: g,j,p,q. since we don't know the true bbox 
+            roundRect(context, cx - tx , cy + ty + 0.28 * fontsize,  
+                    textWidth, fontsize * 1.28, radius, borderThickness, borderColor, fillColor);
+             
+            // text color.  Note that we have to do this AFTER the round-rect as it also uses the "fillstyle" of the canvas 
+            context.fillStyle = getCanvasColor(textColor); 
+         
+            context.fillText( message, cx - tx, cy + ty); 
+            
+            // canvas contents will be used for a texture 
+            var texture = new THREE.Texture(canvas) 
+            texture.needsUpdate = true; 
+         
+            var spriteMaterial = new THREE.SpriteMaterial( { map: texture } ); 
+            var sprite = new THREE.Sprite( spriteMaterial ); 
+
+
+            sprite.scale.set(60,30,15); 
+             
+            // set the sprite's position.  Note that this position is in the CENTER of the sprite 
+            sprite.position.set(x, y, z); 
+             
+            return sprite;     
+        } 
+
+        function getCanvasColor ( color ) { 
+             return "rgba(" + color.r + "," + color.g + "," + color.b + "," + color.a + ")"; 
+        } 
+         
+        /** 
+         *  function for drawing rounded rectangles 
+         */
+        function roundRect(ctx, x, y, w, h, r, borderThickness, borderColor, fillColor)  
+        { 
+            // no point in drawing it if it isn't going to be rendered 
+            if (fillColor == undefined && borderColor == undefined)  
+                return; 
+         
+            x -= borderThickness + r; 
+            y += borderThickness + r; 
+            w += borderThickness * 2 + r * 2; 
+            h += borderThickness * 2 + r * 2; 
+             
+            ctx.beginPath(); 
+            ctx.moveTo(x+r, y); 
+            ctx.lineTo(x+w-r, y); 
+            ctx.quadraticCurveTo(x+w, y, x+w, y-r); 
+            ctx.lineTo(x+w, y-h+r);     
+            ctx.quadraticCurveTo(x+w, y-h, x+w-r, y-h); 
+            ctx.lineTo(x+r, y-h); 
+            ctx.quadraticCurveTo(x, y-h, x, y-h+r); 
+            ctx.lineTo(x, y-r-10);
+            //ctx.quadraticCurveTo(x, y, x+r, y);
+
+            ctx.lineTo(y+10, x-30);
+            ctx.closePath(); 
+             
+            ctx.lineWidth = borderThickness; 
+         
+            // background color 
+            // border color          
+            // if the fill color is defined, then fill it 
+            if (fillColor != undefined) { 
+                ctx.fillStyle = getCanvasColor(fillColor); 
+                ctx.fill(); 
+            } 
+             
+            if (borderThickness > 0 && borderColor != undefined) { 
+                ctx.strokeStyle = getCanvasColor(borderColor); 
+                ctx.stroke(); 
+            } 
+        }
+        /* Annotation */
+
+        function onKeyboardEvent(e) {
+            if (e.code === 'KeyL') {
+                lighting = !lighting;
+
+                if (lighting) {
+                    ambient.intensity = 0.25;
+                    scene.add(keyLight);
+                    scene.add(fillLight);
+                    scene.add(backLight);
+                } else {
+                    ambient.intensity = 1.0;
+                    scene.remove(keyLight);
+                    scene.remove(fillLight);
+                    scene.remove(backLight);
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            render();
+        }
+
+        function render() {
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

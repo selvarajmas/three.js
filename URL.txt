@@ -1,0 +1,14 @@
+
+print url:
+---------
+hex-RGB:
+http://hex.colorrrs.com/
+
+color picker Hexa:
+http://www.cssportal.com/css-tooltip-generator/#
+
+sample:
+http://www.johannes-raida.de/tutorials/three.js/tutorial13/tutorial13.htm
+
+router sample babylon:
+http://logiciels.iut-rodez.fr/proto/weathermap/

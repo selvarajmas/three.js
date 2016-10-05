@@ -1,0 +1,4 @@
+Sprite name,Location_X,Location_Y,Location_Z,fontsize,fontface,borderColor_R,borderColor_G,borderColor_B,borderColor_A,borderThickness,fillColor_R,fillColor_G,fillColor_B,fillColor_A,radius,vAlign,hAlign
+Left wings,40,-3,0,72,Arial,255,255,255,1,2,17,106,194,0.7,25,bottom,left
+Right wings,-20,-3,0,72,Arial,255,255,255,1,2,17,106,194,0.7,25,bottom,left
+Command & control,20,2,40,72,Arial,255,255,255,1,2,17,106,194,0.7,25,bottom,left
